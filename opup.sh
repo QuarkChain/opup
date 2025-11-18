@@ -437,10 +437,17 @@ if [ -z $start ]; then
 
     if [ -n "${ES}" ]; then
         if [ -z $LOCAL_L1 ]; then
-            replace_env_value .envrc L1_RPC_URL "http://65.108.230.142:8545"
-            replace_env_value .envrc L1_RPC_KIND standard
-            replace_env_value_or_insert .envrc L1_BEACON_URL "http://65.108.230.142:3500"
-            replace_env_value_or_insert .envrc L1_BEACON_ARCHIVER_URL "http://65.108.236.27:9645"
+            if [ -n "${MAINNET}" ]; then
+                replace_env_value .envrc L1_RPC_URL "http://65.21.133.53:8545"
+                replace_env_value .envrc L1_RPC_KIND standard
+                replace_env_value_or_insert .envrc L1_BEACON_URL "http://65.21.133.53:4200"
+                replace_env_value_or_insert .envrc L1_BEACON_ARCHIVER_URL "https://archive.mainnet.ethstorage.io:9645"
+            else
+                replace_env_value .envrc L1_RPC_URL "http://65.108.230.142:8545"
+                replace_env_value .envrc L1_RPC_KIND standard
+                replace_env_value_or_insert .envrc L1_BEACON_URL "http://65.108.230.142:3500"
+                replace_env_value_or_insert .envrc L1_BEACON_ARCHIVER_URL "http://65.108.236.27:9645"
+            fi
         else
             # assuming running: kurtosis run --enclave my-l1 github.com/ethpandaops/ethereum-package@a43368eb3085a20f5950de0c7d11dc4bece37348
             # you may need to:
