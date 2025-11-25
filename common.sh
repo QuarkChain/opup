@@ -142,6 +142,9 @@ Press Enter to continue..."
         replace_env_value docker-compose/envs/common-frontend.env "NEXT_PUBLIC_NETWORK_NAME" "Super world computer"
         replace_env_value docker-compose/envs/common-frontend.env "NEXT_PUBLIC_NETWORK_SHORT_NAME" "Super world computer"
     fi
+    if [ -n "${MAINNET}" ]; then
+        replace_env_value docker-compose/envs/common-frontend.env "NEXT_PUBLIC_IS_TESTNET" "false"
+    fi
     open_with_lineno docker-compose/envs/common-frontend.env
 
     # if 8081(kurtosis uses this port) is already in use, switch to 8088 instead
