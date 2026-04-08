@@ -5,6 +5,11 @@ prelude
 
 
 pushd optimism && make op-node op-batcher op-proposer op-challenger cannon op-program && popd
-pushd op-geth && make geth && popd
+if [ "$EL_CLIENT" = "geth" ]; then
+    pushd op-geth && make geth && popd
+else
+    pushd optimism/rust && cargo build --release --bin op-reth && popd
+    cp optimism/rust/target/release/op-reth op-reth/op-reth
+fi
 
 postlude

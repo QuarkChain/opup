@@ -38,7 +38,11 @@ EOF
 }
 
 function start_op_services() {
-    screen -d -m -S "op-geth" bash -c "$opup_script_path geth"
+    if [ "$EL_CLIENT" = "geth" ]; then
+        screen -d -m -S "op-geth" bash -c "$opup_script_path geth"
+    else
+        screen -d -m -S "op-reth" bash -c "$opup_script_path reth"
+    fi
     screen -d -m -S "op-node" bash -c "$opup_script_path node"
     screen -d -m -S "op-batcher" bash -c "$opup_script_path batcher"
     screen -d -m -S "op-proposer" bash -c "$opup_script_path proposer"

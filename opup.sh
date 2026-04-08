@@ -41,7 +41,7 @@ if [ "$#" -ne 0 ]; then
                              --http.api=web3,debug,eth,txpool,net,engine,miner   --ws   --ws.addr=127.0.0.1   --ws.port=8546   --ws.origins="*" \
                              --ws.api=debug,eth,txpool,net,engine,miner   --syncmode=full   --gcmode=archive   --nodiscover   --maxpeers=5  \
                              --networkid=$l2ChainID --authrpc.vhosts="*"   --authrpc.addr=127.0.0.1   --authrpc.port=8551   \
-                             $httpSGTParam --authrpc.jwtsecret=./jwt.txt  --rollup.disabletxpoolgossip  2>&1 | tee -a geth.log -i            
+                             $httpSGTParam --authrpc.jwtsecret=./jwt.txt  --rollup.disabletxpoolgossip  2>&1 | tee -a geth.log -i
 EOF
             )
             ./build/bin/geth --datadir ./datadir   --http   --http.corsdomain="*"   --http.vhosts="*"   --http.addr=0.0.0.0   \
@@ -49,6 +49,28 @@ EOF
                              --ws.api=debug,eth,txpool,net,engine,miner   --syncmode=full   --gcmode=archive   --nodiscover   --maxpeers=5  \
                              --networkid=$l2ChainID --authrpc.vhosts="*"   --authrpc.addr=127.0.0.1   --authrpc.port=8551   \
                              $httpSGTParam --authrpc.jwtsecret=./jwt.txt  --rollup.disabletxpoolgossip  2>&1 | tee -a geth.log -i
+            bash
+            ;;
+        reth)
+            pushd optimism
+            activate_direnv
+            popd
+            cd op-reth
+            httpSGTParam=""
+            if [ -n "${ES}" ]; then
+                httpSGTParam=" --http.sgt.addr 0.0.0.0 --http.sgt.port 8645"
+            fi
+            reth_cmd="./op-reth node --chain ./genesis.json --datadir ./datadir \
+                --http --http.addr 0.0.0.0 --http.corsdomain '*' \
+                --http.api web3,debug,eth,txpool,net \
+                --ws --ws.addr 127.0.0.1 --ws.port 8546 --ws.origins '*' \
+                --ws.api debug,eth,txpool,net \
+                --authrpc.addr 127.0.0.1 --authrpc.port 8551 \
+                --authrpc.jwtsecret ./jwt.txt \
+                --disable-discovery --rollup.disable-tx-pool-gossip \
+                $httpSGTParam 2>&1 | tee -a reth.log -i"
+            save_to_session_history "$reth_cmd"
+            eval "$reth_cmd"
             bash
             ;;
         node)
@@ -275,6 +297,13 @@ function initialize_op_geth() {
     popd
 }
 
+function initialize_op_reth() {
+    pushd op-reth/
+    rm -rf datadir
+    ./op-reth init --chain ./genesis.json --datadir ./datadir
+    popd
+}
+
 function quote_string() {
     local input="$1"
     # Escape double quotes and backslashes
@@ -382,22 +411,28 @@ if [ -z $start ]; then
         if [ -z $optimismBranch ]; then
             optimismBranch="op-es"
         fi
-        opgeth="https://github.com/QuarkChain/op-geth"
-        read -p "Please enter your op-geth branch(op-es by default): " opgethBranch
-        if [ -z $opgethBranch ]; then
-            opgethBranch="op-es"
+        if [ "$EL_CLIENT" = "geth" ]; then
+            opgeth="https://github.com/QuarkChain/op-geth"
+            read -p "Please enter your op-geth branch(op-es by default): " opgethBranch
+            if [ -z $opgethBranch ]; then
+                opgethBranch="op-es"
+            fi
         fi
     else
         read -p "Please enter your optimism url: " optimism
         read -p "Please enter your optimism branch: " optimismBranch
-        read -p "Please enter your op-geth url: " opgeth
-        read -p "Please enter your op-geth branch: " opgethBranch
+        if [ "$EL_CLIENT" = "geth" ]; then
+            read -p "Please enter your op-geth url: " opgeth
+            read -p "Please enter your op-geth branch: " opgethBranch
+        fi
     fi
 
 
     # download repos
     download_repo "optimism" $optimism $optimismBranch
-    download_repo "op-geth" $opgeth $opgethBranch
+    if [ "$EL_CLIENT" = "geth" ]; then
+        download_repo "op-geth" $opgeth $opgethBranch
+    fi
     if [ -n "${ES}" ]; then
         download_repo "da-server" https://github.com/ethstorage/da-server
     fi
@@ -425,9 +460,18 @@ if [ -z $start ]; then
     popd
     
 
-    pushd op-geth
-    make geth
-    popd
+    if [ "$EL_CLIENT" = "geth" ]; then
+        pushd op-geth
+        make geth
+        popd
+    else
+        # build op-reth from the optimism monorepo
+        pushd optimism/rust
+        cargo build --release --bin op-reth
+        popd
+        mkdir -p op-reth
+        cp optimism/rust/target/release/op-reth op-reth/op-reth
+    fi
 
     # fill out ".envrc": L1_RPC_URL/L1_RPC_KIND/L1_BEACON_URL/L1_BEACON_ARCHIVER_URL/L1_CHAIN_ID/L2_CHAIN_ID
     pushd optimism
@@ -674,8 +718,15 @@ Press Enter to continue..."
     prompt "Now generate the L2 config files(genesis.json/rollup.json/jwt.txt)...
 Press Enter to continue..."
 
-    ./bin/op-deployer inspect genesis --workdir .deployer $L2_CHAIN_ID | tee ../op-node/genesis.json ../../op-geth/genesis.json "../op-program/chainconfig/configs/$L2_CHAIN_ID-genesis-l2.json" > /dev/null
-    ./bin/op-deployer inspect rollup --workdir .deployer $L2_CHAIN_ID | tee ../op-node/rollup.json ../../op-geth/rollup.json "../op-program/chainconfig/configs/$L2_CHAIN_ID-rollup.json" > /dev/null
+    if [ "$EL_CLIENT" = "geth" ]; then
+        el_genesis_path="../../op-geth/genesis.json"
+        el_rollup_path="../../op-geth/rollup.json"
+    else
+        el_genesis_path="../../op-reth/genesis.json"
+        el_rollup_path="../../op-reth/rollup.json"
+    fi
+    ./bin/op-deployer inspect genesis --workdir .deployer $L2_CHAIN_ID | tee ../op-node/genesis.json "$el_genesis_path" "../op-program/chainconfig/configs/$L2_CHAIN_ID-genesis-l2.json" > /dev/null
+    ./bin/op-deployer inspect rollup --workdir .deployer $L2_CHAIN_ID | tee ../op-node/rollup.json "$el_rollup_path" "../op-program/chainconfig/configs/$L2_CHAIN_ID-rollup.json" > /dev/null
     
     # deal with op-challenger
     if [ -z "${CHALLENGER}" ]; then
@@ -706,17 +757,27 @@ Press Enter to continue..."
     
     
 
-    openssl rand -hex 32 | tee ../op-node/jwt.txt ../../op-geth/jwt.txt > /dev/null
+    if [ "$EL_CLIENT" = "geth" ]; then
+        el_jwt_path="../../op-geth/jwt.txt"
+    else
+        el_jwt_path="../../op-reth/jwt.txt"
+    fi
+    openssl rand -hex 32 | tee ../op-node/jwt.txt "$el_jwt_path" > /dev/null
 
     popd #op-deployer
 
     popd #optimism
 
-    # initialize op-geth
-    prompt "Now initialize op-geth...
+    # initialize EL client
+    if [ "$EL_CLIENT" = "geth" ]; then
+        prompt "Now initialize op-geth...
 Press Enter to continue..."
-
-    initialize_op_geth
+        initialize_op_geth
+    else
+        prompt "Now initialize op-reth...
+Press Enter to continue..."
+        initialize_op_reth
+    fi
 
 
 
