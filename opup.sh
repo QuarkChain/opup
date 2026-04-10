@@ -665,6 +665,10 @@ Press Enter after you funded."
         replace_toml_value .deployer/intent.toml baseFeeVaultRecipient $(quote_string $l2admin)
         replace_toml_value .deployer/intent.toml l1FeeVaultRecipient $(quote_string $l2admin)
         replace_toml_value .deployer/intent.toml sequencerFeeVaultRecipient $(quote_string $l2admin)
+        # newer op-deployer versions require operatorFeeVaultRecipient to be non-zero
+        if grep -q "operatorFeeVaultRecipient" .deployer/intent.toml; then
+            replace_toml_value .deployer/intent.toml operatorFeeVaultRecipient $(quote_string $l2admin)
+        fi
         replace_toml_value .deployer/intent.toml l1ProxyAdminOwner $(quote_string $l1admin)
         replace_toml_value .deployer/intent.toml l2ProxyAdminOwner $(quote_string $l2admin)
         replace_toml_value .deployer/intent.toml systemConfigOwner $(quote_string $l1admin)
