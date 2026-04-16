@@ -449,7 +449,7 @@ if [ -z $start ]; then
     just op-proposer/op-proposer 
     just op-challenger/op-challenger
     cd op-deployer
-    just build
+    just build-go
     cd ..
     cd op-program
     make op-program
@@ -623,7 +623,7 @@ Press Enter after you funded."
             git checkout $opDeployerTagOrCommit
             mise install
             pushd op-deployer
-            just build
+            just build-go
             popd
         fi
         git checkout $contractsTagOrCommit
