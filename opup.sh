@@ -623,7 +623,7 @@ Press Enter after you funded."
             git checkout $opDeployerTagOrCommit
             mise install
             pushd op-deployer
-            just build-go
+            just build
             popd
         fi
         git checkout $contractsTagOrCommit
